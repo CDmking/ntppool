@@ -2,8 +2,6 @@ package NTPPool::Control::Vendor;
 use strict;
 use parent            qw(NTPPool::Control::Manage);
 use Combust::Constant qw(OK NOT_FOUND FORBIDDEN);
-use NP::Email         ();
-use Email::Stuffer    ();
 use Sys::Hostname     qw(hostname);
 use JSON              ();
 use NP::Stripe;
@@ -475,22 +473,10 @@ sub render_submit {
         return $self->render_zone($zone->{id_token});
     }
 
+    # The API queues the email to the vendors address.
     $zone = $submit_result->{data}{zone};
 
-    $self->tpl_param('vz',     $zone);
-    $self->tpl_param('config', $self->config);
-
-    my $msg = $self->evaluate_template('tpl/vendor/submit_email.txt');
-    my $email =
-      Email::Stuffer->from(NP::Email::address("sender"))
-      ->to(NP::Email::address("vendors"))
-      ->cc(NP::Email::address("notifications"))
-      ->reply_to($self->user->{email})
-      ->subject("New vendor zone application: " . $zone->{zone_name})
-      ->text_body($msg);
-
-    my $return = NP::Email::sendmail($email->email);
-    warn Data::Dumper->Dump([\$msg, \$email, \$return], [qw(msg email return)]);
+    $self->tpl_param('vz', $zone);
 
     return OK, $self->evaluate_template('tpl/vendor/submitted.html');
 }
@@ -1100,28 +1086,8 @@ sub render_admin {
                     );
                 }
                 else {
+                    # The API queues the approval email to the account's users.
                     $zone = $update_result->{data}{zone};
-                    my $user_email = $update_result->{data}{user_email};
-
-                    $self->tpl_param('vz' => $zone);
-                    $self->tpl_param('config', $self->config);
-
-                    # Create dns_root hashref from API data (no database fetch needed)
-                    $self->tpl_param('dns_root', {origin => $zone->{dns_root_origin}});
-
-                    my $msg = $self->evaluate_template('tpl/vendor/approved_email.txt');
-
-                    my $email =
-                      Email::Stuffer->from(NP::Email::address("vendors"))
-                      ->to($user_email)
-                      ->cc(NP::Email::address("notifications"))
-                      ->reply_to(NP::Email::address("vendors"))
-                      ->subject("Vendor zone activated: " . $zone->{zone_name})
-                      ->text_body($msg);
-
-                    my $return = NP::Email::sendmail($email->email);
-                    warn Data::Dumper->Dump([\$msg, \$email, \$return],
-                        [qw(msg email return)]);
 
                     $self->tpl_param("msg" => $zone->{zone_name} . ' approved');
                 }
