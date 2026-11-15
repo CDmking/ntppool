@@ -9,7 +9,7 @@
    # serves the visitor's language) and leave out the hreflang links.
    # Other pages are canonical for their own language, tied together with
    # hreflang links.
-   language_neutral = canonical_path.match('^/(a|scores|zone)/');
+   language_neutral = canonical_path == '/zone' || canonical_path.match('^/(a|scores|zone)/');
    IF language_neutral;
        page.canonical = combust.www_url(canonical_path);
    ELSE;
