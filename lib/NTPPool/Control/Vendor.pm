@@ -535,6 +535,10 @@ sub _edit_zone {
     my $zone_name = lc($self->req_param('zone_name') || '');
     $zone_name =~ s/[^a-z0-9-]+//g;
 
+    # "acme.pool.ntp.org" is "acmepoolntporg" after the cleanup above;
+    # the zone name is just the "acme" part.
+    $zone_name =~ s/poolntporg$//;
+
     my %content = (
         zone_name           => $zone_name,
         organization_name   => $self->req_param('organization_name')   || '',
