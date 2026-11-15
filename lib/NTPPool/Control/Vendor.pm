@@ -1069,7 +1069,8 @@ sub render_admin {
                 }
                 else {
                     $zone = $update_result->{data}{zone};
-                    $self->tpl_param("msg" => $zone->{zone_name} . ' rejected');
+                    $self->tpl_param("msg" => $zone->{zone_name}
+                          . ' rejected. No email was sent to the vendor.');
                 }
             }
             elsif ( $zone->{status} =~ m/(Pending|Rejected)/
