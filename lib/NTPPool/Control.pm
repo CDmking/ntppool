@@ -23,6 +23,7 @@ use experimental qw( defer );
 use NP::I18N;
 use NP::Version;
 use NP::Settings;
+use NP::Email      ();
 use NP::CAPI       ();
 use NP::CAPI::Zone qw(list_zones);
 

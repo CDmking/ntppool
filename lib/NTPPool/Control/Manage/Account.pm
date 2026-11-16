@@ -294,39 +294,13 @@ sub _remove_user_from_account {
         return $self->render_users($account);
     }
 
-# Note: Logging moved to Go API (RemoveUserFromAccount service)
-# During PostgreSQL migration, cannot log to MySQL with account_id that only exists in PostgreSQL
+    # The API writes the audit log and queues the email.
 
-    # Note: No need to reload during PostgreSQL migration
-    # Account data already in hashref from API
-
-    # _account_users cached the pre-removal list above (line 269) to validate
+    # _account_users cached the pre-removal list above to validate
     # $user_id; render_users below calls it again for the same account, so
     # without invalidating here it would replay that stale list instead of
     # reflecting the removal.
     delete $self->{'_account_users_' . $account->{account_id}};
-
-    my $param = {
-        account      => $account,
-        user_removed => $user,
-    };
-
-    my $msg = Combust::Template->new->process('tpl/account/account_user_removed.txt',
-        $param, {site => 'manage', config => $self->config});
-
-    my $email =
-      Email::Stuffer->from(NP::Email::address("sender"))
-      ->reply_to(NP::Email::address("support"))
-      ->subject("NTP Pool account change")
-      ->text_body($msg);
-
-    $email->to($user->{email});
-    my @cc = grep { $_->{user_id} != $user_id } @$users;
-    if (@cc) {
-        $email->cc(map { $_->{email} } @cc);
-    }
-
-    NP::Email::sendmail($email);
 
     $self->render_users($account);
 }
@@ -829,29 +803,8 @@ sub render_user_delete {
             return OK, $self->evaluate_template('tpl/user/delete_confirmation.html');
         }
 
-        # Use the updated user data from API response. The Go API enqueues the
-        # user_tasks delete row itself (in the same transaction that sets
-        # deletion_on), so there is no second call and no Perl-computed timestamp
-        # to drift from deletion_on.
+        # The API schedules the deletion task and queues the email to the target user.
         my $updated_user = $result->{data}{user};
-
-        my $param = {
-            user     => $updated_user,
-            trace_id => $span->context->hex_trace_id,
-        };
-
-        my $msg = Combust::Template->new->process('tpl/user/user_deletion_scheduled.txt',
-            $param, {site => 'manage', config => $self->config});
-
-        my $email =
-          Email::Stuffer->from(NP::Email::address("sender"))
-          ->reply_to(NP::Email::address("support"))
-          ->subject("NTP Pool user deletion scheduled")
-          ->text_body($msg);
-
-        # Deletion-scheduled email goes to the target user, not the caller.
-        $email->to($updated_user->{email});
-        NP::Email::sendmail($email);
 
         if ($is_self) {
             return $self->redirect($self->manage_url('/manage/logout'));
