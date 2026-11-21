@@ -555,6 +555,7 @@ Hashref with structure:
                 netspeed_options => ...,  # arrayref[hashref (NetspeedOption)] - netspeed_options are the netspeed settings this server can be set to,
  ascending. Set only when the caller can edit the server (GetServer with
  require_edit_permission, GetAccountServers by id_token, UpdateServer).
+                score_updated_at => ...,  # hashref (Timestamp) - score_updated_at is set by GetServer when the server has a recorded score.
             },  # hashref (Server)
         },
         error        => undef,       # Error message (if any)
@@ -811,6 +812,7 @@ Hashref with structure:
                 netspeed_options => ...,  # arrayref[hashref (NetspeedOption)] - netspeed_options are the netspeed settings this server can be set to,
  ascending. Set only when the caller can edit the server (GetServer with
  require_edit_permission, GetAccountServers by id_token, UpdateServer).
+                score_updated_at => ...,  # hashref (Timestamp) - score_updated_at is set by GetServer when the server has a recorded score.
             },  # hashref (Server) - The verified server with complete details
         },
         error        => undef,       # Error message (if any)
@@ -916,6 +918,7 @@ Hashref with structure:
                 netspeed_options => ...,  # arrayref[hashref (NetspeedOption)] - netspeed_options are the netspeed settings this server can be set to,
  ascending. Set only when the caller can edit the server (GetServer with
  require_edit_permission, GetAccountServers by id_token, UpdateServer).
+                score_updated_at => ...,  # hashref (Timestamp) - score_updated_at is set by GetServer when the server has a recorded score.
             },  # hashref (Server) - The server being verified with complete details
             already_verified => ...,  # bool - Whether the server is already verified
  If true, Perl should redirect to the server's manage page

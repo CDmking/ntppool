@@ -1,0 +1,31 @@
+#!/bin/sh
+# Run a command with its output copied to a log file, and exit with the
+# command's status rather than tee's.
+#
+# Usage: run-logged LOGFILE COMMAND [ARGS...]
+set -eu
+
+log=$1
+shift
+
+fifo=$(mktemp -u)
+mkfifo "$fifo"
+tee "$log" <"$fifo" &
+tee_pid=$!
+"$@" >"$fifo" 2>&1 &
+pid=$!
+
+# The shell is PID 1 in the container, so pass stop signals on.
+trap 'kill -TERM "$pid" 2>/dev/null || true' TERM INT
+
+set +e
+wait "$pid"
+status=$?
+# A trapped signal interrupts wait before the command has exited.
+while kill -0 "$pid" 2>/dev/null; do
+    wait "$pid"
+    status=$?
+done
+wait "$tee_pid"
+rm -f "$fifo"
+exit "$status"

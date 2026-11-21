@@ -71,12 +71,34 @@ augment 'reference' => sub {
                 $env->{'combust.notes'}->{lang} = $lang;
                 $env->{PATH_INFO} = $uri;
             }
-            my $res = $app->($env);
+            if (exists $env->{'ntppool.oauth_query'}) {
+                local $env->{QUERY_STRING} = $env->{'ntppool.oauth_query'};
+                return $app->($env);
+            }
 
 #            NP::Tracing->flush();
 
-            return $res;
+            return $app->($env);
         };
+    };
+};
+
+around 'reference' => sub {
+    my ($orig, $self) = @_;
+    my $app = $self->$orig;
+    return sub {
+        my $env  = shift;
+        my $path = $env->{PATH_INFO} =~ s!$lang_regexp!/!r;
+        return $app->($env) unless NTPPool::Control::is_sensitive_path($path);
+
+        # Keep query strings out of the framework's access log and request span.
+        my %logged_env = (
+            %$env,
+            'ntppool.oauth_query' => $env->{QUERY_STRING},
+            QUERY_STRING          => '',
+        );
+        $logged_env{REQUEST_URI} =~ s/\?.*// if defined $logged_env{REQUEST_URI};
+        return $app->(\%logged_env);
     };
 };
 

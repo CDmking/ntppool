@@ -9,6 +9,16 @@ web.ntppool.test, manage.ntppool.test {
 	}
 }
 
+auth0.ntppool.test {
+	tls internal
+	reverse_proxy auth0-stub:8080
+}
+
+connector.ntppool.test {
+	tls internal
+	respond /callback "Connector callback"
+}
+
 # stripe-gw: the stub or the real service, by STRIPE_MODE (stub|real), which
 # up exports and CI's proxy step sets. Caddy substitutes {$STRIPE_MODE}
 # before parsing. A mode that names no file is only logged ("File to import

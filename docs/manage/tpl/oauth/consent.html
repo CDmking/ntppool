@@ -1,0 +1,10 @@
+<h2>Connect [% client_name | html %] to NTP Pool?</h2>
+
+<p>This app can look up Pool records using your current staff privileges. Lookup queries and results can be sent to the model provider.</p>
+
+<form method="post" action="/manage/oauth/authorize">
+    <input type="hidden" name="auth_token" value="[% combust.auth_token | html %]">
+    <input type="hidden" name="query" value="[% oauth_query | html %]">
+    <button class="btn btn-primary" type="submit" name="decision" value="approve">Allow staff lookups</button>
+    <button class="btn btn-secondary" type="submit" name="decision" value="deny">Cancel</button>
+</form>

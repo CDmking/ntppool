@@ -30,6 +30,7 @@ sub login {
     my $msg       = shift;
     my $login_url = $self->login_url;
 
+    $self->tpl_params->{page}{disable_analytics} = 1;
     $self->tpl_param('login_url',    $login_url);
     $self->tpl_param('callback_url', $self->callback_url);
     $self->tpl_param('message',      $msg);
@@ -183,10 +184,11 @@ sub logout {
 
 sub _here_url {
     my $self = shift;
-    my $args = $self->request->args || '';
-    my $here =
-      URI->new($self->config->base_url($self->site) . $self->request->uri . '?' . $args);
-    $here->as_string;
+    my $path = $self->request->uri->path;
+
+    # URI canonicalizes percent escapes. Pass the original query through login.
+    my $query = $self->request->args;
+    return length($query // '') ? "$path?$query" : $path;
 }
 
 sub setup_session {

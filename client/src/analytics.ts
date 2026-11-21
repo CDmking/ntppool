@@ -9,6 +9,7 @@ import { init, track } from './plausible.js'
 const domainMeta = document.querySelector('meta[name="plausible-domain"]')
 const apiHostMeta = document.querySelector('meta[name="plausible-api-host"]')
 const propsMeta = document.querySelector('meta[name="plausible-props"]')
+const trackingDisabled = document.querySelector('meta[name="plausible-disabled"]') !== null
 
 // Default to current host, allow override
 const apiHostValue = apiHostMeta?.getAttribute('content') || (window.location.protocol + '//' + window.location.host)
@@ -29,10 +30,12 @@ try {
 init({
   domain: domainMeta?.getAttribute('content') || window.location.hostname,
   endpoint: endpoint,
-  autoCapturePageviews: true,
-  outboundLinks: true,
-  fileDownloads: true,
+  autoCapturePageviews: !trackingDisabled,
+  outboundLinks: !trackingDisabled,
+  fileDownloads: !trackingDisabled,
   customProperties: customProperties,
+  // init() still runs so track() works; drop manual events on disabled pages.
+  transformRequest: (payload) => trackingDisabled ? null : payload,
 })
 
 console.log('Plausible analytics initialized for domain:', domainMeta?.getAttribute('content') || window.location.hostname)

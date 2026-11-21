@@ -35,6 +35,12 @@ The API comes from the image pinned in `e2e/stack/api-image` (and, for CI, in
 `sha-…` (main) or `x.y.z` (release) tag. The `api` and `api-dev` images don't
 have the `api e2e` commands, and `api-e2e` is never deployed.
 
+The Compose stack can run the connector OAuth browser tests with a test-only
+Auth0 server. Start the stack with an `API_IMAGE` build that includes
+`ConnectorService`, then run
+`E2E_CONNECTOR=1 e2e/stack/test tests/connector-oauth.spec.ts`. The tests check
+the API and Perl logs and collected traces under `e2e/test-logs/` for OAuth data.
+
 ## Real Stripe on the stack
 
 `E2E_STRIPE=1 e2e/stack/up` runs the real stripe-gw (the image pinned in

@@ -84,6 +84,13 @@ my %UA_FOR_METHOD = (
     'ntppool.account.v1.AccountService/ResendAccountInvite' => $NP::UA::ua_medium,
 );
 
+my %SENSITIVE_RPC = map { $_ => 1 } qw(
+    ntppool.auth.v1.AuthService/GetOAuthLoginURL
+    ntppool.auth.v1.AuthService/ProcessAuth0Login
+    ntppool.connector.v1.ConnectorService/CheckAuthorization
+    ntppool.connector.v1.ConnectorService/DecideAuthorization
+);
+
 # ua returns the user agent for an RPC. The agents are shared across
 # requests, so per-request headers belong on the HTTP::Request, never in
 # the agent's default headers.
@@ -222,6 +229,7 @@ sub connect_rpc {
       // 'POST';    # Allow GET for side-effect free RPCs
     my $prefix = delete $args{prefix} // '/int/rpc';  # Default to internal RPC API prefix
     my $expected_codes = delete $args{expected_codes} // [];
+    my $debug          = $ENV{CAPI_DEBUG} && !$SENSITIVE_RPC{"$service/$method"};
 
     local %CALL_EXPECTED_CODES = (%EXPECTED_CODES, map { $_ => 1 } @$expected_codes);
 
@@ -241,7 +249,7 @@ sub connect_rpc {
     }
 
     # Debug logging (controlled by environment variable)
-    if ($ENV{CAPI_DEBUG}) {
+    if ($debug) {
         warn "CAPI: calling connect rpc: $url\n";
         warn "CAPI: http_method = $http_method\n";
         warn "CAPI: auth = " .    ($auth // 'UNDEF') . "\n";
@@ -272,18 +280,18 @@ sub connect_rpc {
     # Authentication header
     if ($auth) {
         $req->header('Authorization' => "Bearer $auth");
-        warn "CAPI: Set Authorization header\n" if $ENV{CAPI_DEBUG};
+        warn "CAPI: Set Authorization header\n" if $debug;
     }
 
     # Account selection header
     if ($account) {
         $req->header('X-Account' => $account);
-        warn "CAPI: Set X-Account header to: $account\n" if $ENV{CAPI_DEBUG};
+        warn "CAPI: Set X-Account header to: $account\n" if $debug;
     }
     else {
         warn "CAPI: NOT setting X-Account header (account param is "
           . (defined $account ? "defined but falsy: '$account'" : "undefined") . ")\n"
-          if $ENV{CAPI_DEBUG};
+          if $debug;
     }
 
     # Forward the client IP so the API sees the real user
@@ -298,7 +306,7 @@ sub connect_rpc {
     }
 
     # Debug: Log outgoing headers (always log for troubleshooting)
-    if ($ENV{CAPI_DEBUG}) {
+    if ($debug) {
         warn "CAPI: Request headers:\n";
         for my $h ($req->headers->header_field_names) {
             warn "  $h: " . $req->header($h) . "\n";
@@ -307,7 +315,7 @@ sub connect_rpc {
     }
 
     # Make request with error handling
-    my $ua = ua($service, $method);
+    my $ua  = ua($service, $method);
     my $res = eval { $ua->request($req) };
     if ($@ || !$res) {
         return {
@@ -323,7 +331,7 @@ sub connect_rpc {
     # This decompresses the content and removes Content-Encoding header
     $res->decode();
 
-    if ($ENV{CAPI_DEBUG}) {
+    if ($debug) {
         warn $res->status_line, "\n";
         warn "Response headers (after decode):\n";
         warn "  Content-Type: ",     $res->header('Content-Type')     || 'none', "\n";
@@ -375,7 +383,7 @@ sub connect_rpc {
           . ($result{trace_id} || 'none') . "]\n";
     }
 
-    if ($ENV{CAPI_DEBUG}) {
+    if ($debug) {
         warn "Data: ", Data::Dump::pp(\%result), "\n";
     }
 

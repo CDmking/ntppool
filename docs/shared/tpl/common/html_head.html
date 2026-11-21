@@ -5,9 +5,13 @@
 <meta name="trace-id" content="[% trace_id | html %]">
 [% END %]
 
-<meta name="plausible-domain" content="[% combust.analytics_hostname %]">
-[% SET plausible_props = combust.plausible_props; IF plausible_props %]
-<meta name="plausible-props" content="[% plausible_props | html %]">
+[% IF page.disable_analytics %]
+<meta name="plausible-disabled" content="true">
+[% ELSE %]
+  <meta name="plausible-domain" content="[% combust.analytics_hostname %]">
+  [% SET plausible_props = combust.plausible_props; IF plausible_props %]
+  <meta name="plausible-props" content="[% plausible_props | html %]">
+  [% END %]
 [% END %]
 
 [%- PROCESS tpl/common/language_headers.html -%]

@@ -24,6 +24,7 @@ NP::CAPI::Audit - ConnectRPC client for AuditService
 Includes related entity information (account, user, server) via JOINs.
 Authentication: Required (sessions.GetUser and sessions.GetAccount from context)
 Authorization: Staff only (support_staff privilege required)
+`vendor-zone` entries are returned only to users with the vendor_admin privilege.
     my $result = get_account_audit_logs(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -105,6 +106,7 @@ GetAccountAuditLogs returns audit log entries for an account.
 Includes related entity information (account, user, server) via JOINs.
 Authentication: Required (sessions.GetUser and sessions.GetAccount from context)
 Authorization: Staff only (support_staff privilege required)
+`vendor-zone` entries are returned only to users with the vendor_admin privilege.
 
 B<Arguments:>
 

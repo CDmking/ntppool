@@ -21,6 +21,22 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 INSERT INTO accounts (id_token, name, public_profile, created_on)
 VALUES ('2zrqgk7', 'Test Servers 1', false, now());
 
+-- The Compose Auth0 fixture signs in as this staff user.
+INSERT INTO users (id_token, email, name, username)
+VALUES ('auth0-e2e-staff', 'auth0-staff@ntppool.test', 'E2E Auth0 Staff', 'auth0-e2e-staff');
+
+INSERT INTO user_identities (profile_id, user_id, provider, email, created_on)
+SELECT 'auth0|ntppool-e2e-staff', id, 'auth0', email, now()
+FROM users WHERE email = 'auth0-staff@ntppool.test';
+
+INSERT INTO user_privileges (user_id, support_staff)
+SELECT id, true FROM users WHERE email = 'auth0-staff@ntppool.test';
+
+INSERT INTO account_users (account_id, user_id)
+SELECT a.id, u.id
+FROM accounts a CROSS JOIN users u
+WHERE a.id_token = '2zrqgk7' AND u.email = 'auth0-staff@ntppool.test';
+
 INSERT INTO servers (ip, ip_version, account_id, hostname, stratum, in_pool,
                      netspeed, netspeed_target, created_on, score_raw)
 SELECT '216.239.35.4', 'v4', a.id, 'time.google.com', 1, 1,

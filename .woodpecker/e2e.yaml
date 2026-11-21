@@ -30,7 +30,7 @@ variables:
   # sha-xxxxxxx (main) or x.y.z (a release). The api and api-dev images
   # have no `api e2e` commands. e2e/stack/api-image holds just the image
   # name on one line (no comments).
-  - &api_image ${API_IMAGE:-harbor.ntppool.org/ntporg/api-e2e:sha-36af26d6}
+  - &api_image ${API_IMAGE:-harbor.ntppool.org/ntporg/api-e2e:sha-b6fc6584}
 
   # The stripe-gw image for real-Stripe runs, pinned the same way: also in
   # e2e/stack/stripe-gw-image, and check-api-pin compares the two.

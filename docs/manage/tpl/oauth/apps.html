@@ -1,0 +1,36 @@
+<h2>Connected apps</h2>
+
+[% IF grants.size %]
+<table class="table">
+    <thead>
+        <tr>
+            <th scope="col">App</th>
+            <th scope="col">Connected</th>
+            <th scope="col">Expires</th>
+            <th scope="col">Access</th>
+        </tr>
+    </thead>
+    <tbody>
+        [% FOREACH grant IN grants %]
+        <tr>
+            <th scope="row">[% grant.client_name | html %]</th>
+            <td><time datetime="[% grant.created_at | html %]">[% grant.created_at | html %]</time></td>
+            <td><time datetime="[% grant.expires_at | html %]">[% grant.expires_at | html %]</time></td>
+            <td>
+                [% IF grant.revoked %]
+                Revoked
+                [% ELSE %]
+                <form method="post" action="/manage/oauth/apps/revoke">
+                    <input type="hidden" name="auth_token" value="[% combust.auth_token | html %]">
+                    <input type="hidden" name="grant_id" value="[% grant.grant_id | html %]">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">Revoke</button>
+                </form>
+                [% END %]
+            </td>
+        </tr>
+        [% END %]
+    </tbody>
+</table>
+[% ELSE %]
+<p>You have no connected apps.</p>
+[% END %]

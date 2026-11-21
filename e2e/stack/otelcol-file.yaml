@@ -1,0 +1,9 @@
+# Compose-only overlay. The CI stack still uses the base nop exporters.
+exporters:
+  file:
+    path: /test-logs/traces.json
+
+service:
+  pipelines:
+    traces:
+      exporters: [file]

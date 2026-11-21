@@ -58,6 +58,11 @@
        [% PH %] NTPPool::Control::Manage::Monitor->super
     </Location>
 
+    <Location /manage/oauth>
+       SetHandler perl-script
+       [% PH %] NTPPool::Control::Manage::OAuth->super
+    </Location>
+
     <Location /static>
       SetHandler perl-script
       [% PH %] NTPPool::Control::Basic->super

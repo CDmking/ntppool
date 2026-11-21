@@ -185,7 +185,7 @@ sub current_account {
     # 2. Resolve id_token (if provided) or use default
     # 3. Check permissions
     # 4. Return account context + permissions
-    my $id_token = $self->req_param('a');
+    my $id_token = $self->requested_account;
 
     # 'a=new' is the "create a new account" sentinel (see Manage/Account.pm
     # manage_dispatch), not an account id_token. Passing it to validate_session
@@ -238,6 +238,10 @@ sub current_account {
     $account->{permissions} = $data->{permissions} if $data->{permissions};
 
     return $self->{_current_account} = $account;
+}
+
+sub requested_account {
+    return shift->req_param('a');
 }
 
 sub user_is_staff {
@@ -302,7 +306,7 @@ sub render {
         return $self->logout;
     }
 
-    if ($self->request->uri =~ m!^/manage/login!) {
+    if (NTPPool::Control::is_login_path($self->request->uri)) {
         $self->set_span_name("manage.login");
 
         # Auth0 redirects back with error= when it rejects the authorize
@@ -319,12 +323,11 @@ sub render {
         }
 
         if ($self->req_param('code')) {
-            $self->handle_login();
+            my @response = $self->handle_login;
+            return @response if @response;
         }
         if ($self->user) {
-            my $r = URI->new($self->req_param('r') || '/manage')->path_query;
-            $r = '/manage' unless $r =~ m{^/(?!/)};
-            return $self->redirect($r);
+            return $self->redirect($self->_login_return_path);
         }
 
         # if something goes terribly wrong this would just pointlessly
@@ -401,10 +404,9 @@ sub handle_login {
     # On the next request, validate_session will load deletion_on and privileges
     $self->user($data);
 
-    # Show message if deletion was cancelled
-    if ($data->{deletion_cancelled}) {
-        return $self->login("Your account deletion has been cancelled.");
-    }
+    # Signing in cancels a pending deletion. Still return the user to the page
+    # they started from, such as a connector consent page.
+    $span->set_attribute("user.deletion_cancelled", 1) if $data->{deletion_cancelled};
 
     return;    # Will redirect via parent handler
 }
@@ -415,13 +417,20 @@ sub callback_url {
     my $uri = URI->new($self->config->base_url($self->site));
     $uri->path('/manage/login');
 
-    my $here = $self->_here_url;
-    if ($here =~ m{manage/login}) {
-        $here = "/manage";
-    }
+    my $here =
+      NTPPool::Control::is_login_path($self->request->uri)
+      ? $self->_login_return_path
+      : $self->_here_url;
 
     $uri->query_form(r => $here);
     $uri->as_string();
+}
+
+sub _login_return_path {
+    my $self = shift;
+    my $path = $self->req_param('r') // '';
+    return '/manage' unless $path =~ m{\A/(?![/\\])} && $path !~ /[\x00-\x20\x7f#]/;
+    return $path;
 }
 
 sub login_url {

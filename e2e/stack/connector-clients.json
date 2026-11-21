@@ -1,0 +1,9 @@
+[
+  {
+    "id": "e2e-connector",
+    "name": "Connector <A>",
+    "redirect_uris": ["https://connector.ntppool.test/callback?existing=value"],
+    "token_endpoint_auth_method": "none",
+    "refresh_tokens": true
+  }
+]

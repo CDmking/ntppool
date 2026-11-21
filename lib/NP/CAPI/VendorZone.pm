@@ -210,7 +210,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },
             # ... more items
         ],  # arrayref[hashref (VendorZone)] - zones is the list of vendor zones
@@ -316,7 +316,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },  # hashref (VendorZone) - zone contains the complete vendor zone details
         },
         error        => undef,       # Error message (if any)
@@ -431,7 +431,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },  # hashref (VendorZone) - zone contains the complete vendor zone details
         },
         error        => undef,       # Error message (if any)
@@ -560,7 +560,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },  # hashref (VendorZone) - zone contains the updated vendor zone
         },
         error        => undef,       # Error message (if any)
@@ -677,7 +677,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },  # hashref (VendorZone) - zone contains the complete vendor zone details (for email template)
             email_sent => ...,  # bool - email_sent indicates if the notification email was sent successfully
             user_email => ...,  # string - user_email is the zone owner's email address
@@ -781,7 +781,7 @@ B<Arguments:>
         status => $value,       # string - status is the new status (Approved, Rejected) (required)
         rt_ticket => $value,       # int - rt_ticket is optional admin tracking number
         opensource_approved => $value,       # bool - opensource_approved records whether the open-source exemption was granted.
-        rejection_reason => $value,       # string - rejection_reason is free-text shown to the vendor on rejection.
+        rejection_reason => $value,       # string - rejection_reason is a staff-only note. Only vendor admins can see it.
     );
 
 B<Returns:>
@@ -817,7 +817,7 @@ Hashref with structure:
                 account_token => ...,  # string - account_token identifies the owning account
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
-                rejection_reason => ...,  # string - rejection_reason is free-text why a zone was rejected (e.g. "not open source").
+                rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
             },  # hashref (VendorZone) - zone contains the complete vendor zone details (for email template)
             user_email => ...,  # string - user_email is the zone owner's email address (for approval emails)
             email_sent => ...,  # bool - email_sent indicates if the notification email was sent successfully

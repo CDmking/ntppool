@@ -88,6 +88,13 @@
     </li>
 
 
+    [% # Only staff can approve connectors; former staff can still revoke at this URL. %]
+    [% IF combust.user_is_staff || page.is_connected_apps %]
+    <li class="nav-item">
+        <a class="nav-link [% page.is_connected_apps ? " active" : "" %]" href="/manage/oauth/apps">Connected apps</a>
+    </li>
+    [% END %]
+
     <li class="nav-item logout-item">
         <a class="nav-link" href="[% combust.manage_url('/manage/logout') %]">Logout ([% combust.user.email | html
             %])</a>

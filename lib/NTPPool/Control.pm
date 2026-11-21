@@ -13,6 +13,7 @@ use Unicode::Collate;
 use Data::ULID;
 use JSON::XS      qw(decode_json encode_json);
 use File::Slurper qw(read_binary);
+use URI           ();
 use Syntax::Keyword::Dynamically;
 use OpenTelemetry::Constants
   qw( SPAN_KIND_SERVER SPAN_KIND_INTERNAL SPAN_STATUS_ERROR SPAN_STATUS_OK );
@@ -432,22 +433,46 @@ sub is_htmx {
 }
 
 sub redirect {
-    my ($self, $url) = (shift, shift);
+    my ($self, $url, @args) = @_;
 
-    my $span = NP::Tracing->tracer->create_span(name => "redirect",);
+    # for the span since it doesn't support references
+    $url = $url->as_string if ref $url;
+
+    return $self->_traced_redirect($url, sub { $self->SUPER::redirect($url, @args) });
+}
+
+sub redirect_see_other {
+    my ($self, $url) = @_;
+    return $self->_traced_redirect(
+        $url,
+        sub {
+            $self->request->header_out('Location' => $url);
+            $self->request->response->status(303);
+            return (303, "See Other\n", 'text/plain');
+        }
+    );
+}
+
+sub _traced_redirect {
+    my ($self, $url, $respond) = @_;
+
+    my $span = NP::Tracing->tracer->create_span(name => "redirect");
     dynamically otel_current_context = otel_context_with_span($span);
     defer { $span->end(); };
 
-    if (ref $url) {
-
-        # for the span since it doesn't support references
-        $url = $url->as_string;
-    }
-
-    $span->set_attribute("redirect.url", $url);
+    $span->set_attribute("redirect.url", _redirect_trace_url($url)) if defined $url;
 
     $self->post_process;
-    return $self->SUPER::redirect($url, @_);
+    return $respond->();
+}
+
+sub _redirect_trace_url {
+    my ($url) = @_;
+    my $uri = URI->new($url);
+    $uri->query(undef) if $uri->can('query');
+    $uri->fragment(undef);
+    $uri->userinfo(undef) if $uri->can('userinfo');
+    return $uri->as_string;
 }
 
 sub cache_control {
@@ -530,6 +555,18 @@ sub surrogate_key {
     return;
 }
 
+# Pages whose URL can carry login or OAuth secrets. NP::App keeps their query
+# out of the access log and request span; post_process withholds the Referer.
+sub is_sensitive_path {
+    my $path = shift;
+    return is_login_path($path) || $path =~ m{^/manage/oauth(?:/|$)};
+}
+
+sub is_login_path {
+    my $path = shift;
+    return $path =~ m{^/manage/login/?$};
+}
+
 sub post_process {
     my $self = shift;
 
@@ -542,6 +579,12 @@ sub post_process {
             }
         }
     }
+
+    my $referrer_policy =
+      is_sensitive_path($self->request->path)
+      ? 'no-referrer'
+      : 'origin-when-cross-origin';
+    my $form_action = $self->form_action_sources;
 
     my @headers = (
 
@@ -557,7 +600,7 @@ sub post_process {
                 qq[default-src 'none'; base-uri 'none'; frame-ancestors 'none';],
                 qq[connect-src 'self' https://www.ntppool.org https://send.webform.dev${web_hostname};],
                 qq[font-src https://fonts.gstatic.com;],
-                qq[form-action 'self' https://send.webform.dev https://checkout.stripe.com https://billing.stripe.com;],
+                qq[form-action $form_action;],
                 qq[img-src 'self' data: https://news.ntppool.org https://*.mapper.ntppool.org;],
 
                 # Each third-party script is pinned to its one file: mapper.js
@@ -574,7 +617,7 @@ sub post_process {
         # security features
         ['X-Content-Type-Options' => 'nosniff'],
         ['X-Frame-Options'        => 'deny'],
-        ['Referrer-Policy'        => 'origin-when-cross-origin'],
+        ['Referrer-Policy'        => $referrer_policy],
 
         # HTMX CORS support
         ['Access-Control-Allow-Headers'  => 'HX-Request'],
@@ -599,6 +642,11 @@ sub post_process {
     }
 
     return OK;
+}
+
+sub form_action_sources {
+    return
+      "'self' https://send.webform.dev https://checkout.stripe.com https://billing.stripe.com";
 }
 
 # Vite manifest cache
