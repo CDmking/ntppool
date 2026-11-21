@@ -142,6 +142,9 @@ Hashref with structure:
             redirect_url => ...,  # string - Send the browser back with an error.
             staff_required_client_name => ...,  # string - The user isn't active staff: explain that and offer only a deny that returns to this client.
             form_action_source => ...,  # string - CSP form-action source that lets the consent form follow the 303 back to the client.
+            client_host => ...,  # string - Hostname of the client ID URL for a CIMD client, for example claude.ai. Empty for other clients.
+            redirect_host => ...,  # string - Hostname of the request's redirect URI.
+            loopback_redirect => ...,  # bool - The redirect URI is HTTP to localhost or a loopback IP, so the code goes to a program on the user's computer.
         },
         error        => undef,       # Error message (if any)
         trace_id     => "...",       # OpenTelemetry trace ID

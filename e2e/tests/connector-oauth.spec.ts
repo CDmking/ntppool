@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { readFile } from "node:fs/promises";
 import { test, expect, type Page } from "@playwright/test";
 import { Client } from "pg";
@@ -10,15 +12,18 @@ const auth0 = "https://auth0.ntppool.test";
 const clientName = "Connector <A>";
 const callback = "https://connector.ntppool.test/callback?existing=value";
 const callbackUrl = new URL(callback);
+const cimdClientId = "https://connector.ntppool.test/oauth/client.json";
+const cimdName = "CIMD Connector";
 const consentHeading = `Connect ${clientName} to NTP Pool?`;
 const challenge = createHash("sha256").update("a".repeat(43)).digest("base64url");
 
 function authQuery(
   state: string = randomUUID(),
   redirectUri = callback,
+  clientId = "e2e-connector",
 ): string {
   return new URLSearchParams({
-    client_id: "e2e-connector",
+    client_id: clientId,
     redirect_uri: redirectUri,
     response_type: "code",
     resource: "https://mcp.ntppool.test/mcp",
@@ -239,6 +244,41 @@ test.describe("connector OAuth", () => {
       { Authorization: `Bearer ${sessionToken}` }, {},
     );
     expect(result.grants).toEqual([expect.objectContaining({ revoked: true })]);
+  });
+
+  test("CIMD client with a loopback redirect warns and reaches the local callback", async ({ page, context }) => {
+    const received: string[] = [];
+    const server = createServer((req, res) => { received.push(req.url!); res.end("Loopback callback"); });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const port = (server.address() as AddressInfo).port;
+      const redirectUri = `http://127.0.0.1:${port}/callback`;
+      await loginAs(context, uniqueTestEmail("oauth-staff"), { grantStaff: true });
+      await page.goto(`${authorize}?${authQuery(randomUUID(), redirectUri, cimdClientId)}`);
+      await expect(page.getByRole("heading", { name: `Connect ${cimdName} to NTP Pool?` })).toBeVisible();
+      await expect(page.getByRole("definition")).toHaveText(["connector.ntppool.test", "127.0.0.1"]);
+      await expect(page.getByRole("alert").filter({ hasText: "This sign-in will be sent to a program on this computer." })).toBeVisible();
+      await page.getByRole("button", { name: "Allow staff lookups", exact: true }).click();
+      await expect(page.getByText("Loopback callback")).toBeVisible();
+      expect(new URL(received[0], redirectUri).searchParams.get("code")).toBeTruthy();
+    } finally {
+      server.close();
+    }
+  });
+
+  test("CIMD client with an HTTPS redirect shows no loopback warning", async ({ page, context }) => {
+    await loginAs(context, uniqueTestEmail("oauth-staff"), { grantStaff: true });
+    await page.goto(`${authorize}?${authQuery(randomUUID(), callback, cimdClientId)}`);
+    await expect(page.getByRole("heading", { name: `Connect ${cimdName} to NTP Pool?` })).toBeVisible();
+    await expect(page.getByRole("definition")).toHaveText(["connector.ntppool.test", "connector.ntppool.test"]);
+    await expect(page.getByText("This sign-in will be sent to a program on this computer.")).toHaveCount(0);
+  });
+
+  test("preregistered client shows only the redirect host", async ({ page, context }) => {
+    await loginAs(context, uniqueTestEmail("oauth-staff"), { grantStaff: true });
+    await page.goto(`${authorize}?${authQuery()}`);
+    await expect(page.getByRole("heading", { name: consentHeading })).toBeVisible();
+    await expect(page.getByRole("term")).toHaveText(["Sign-in returns to"]);
   });
 
   test("consent page refuses framing", async ({ page, context }) => {

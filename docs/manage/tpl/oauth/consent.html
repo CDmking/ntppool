@@ -2,6 +2,21 @@
 
 <p>This app can look up Pool records using your current staff privileges. Lookup queries and results can be sent to the model provider.</p>
 
+<dl>
+[% IF client_host %]
+    <dt>Client ID hosted at</dt>
+    <dd>[% client_host | html %]</dd>
+[% END %]
+    <dt>Sign-in returns to</dt>
+    <dd>[% redirect_host | html %]</dd>
+</dl>
+
+[% IF loopback_redirect %]
+<div class="alert alert-warning" role="alert">
+    This sign-in will be sent to a program on this computer. Continue only if you started the sign-in from [% client_name | html %].
+</div>
+[% END %]
+
 <form method="post" action="/manage/oauth/authorize">
     <input type="hidden" name="auth_token" value="[% combust.auth_token | html %]">
     <input type="hidden" name="query" value="[% oauth_query | html %]">

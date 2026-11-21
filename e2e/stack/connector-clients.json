@@ -5,5 +5,12 @@
     "redirect_uris": ["https://connector.ntppool.test/callback?existing=value"],
     "token_endpoint_auth_method": "none",
     "refresh_tokens": true
+  },
+  {
+    "id": "https://connector.ntppool.test/oauth/client.json",
+    "name": "CIMD Connector",
+    "redirect_uris": ["http://127.0.0.1/callback", "https://connector.ntppool.test/callback?existing=value"],
+    "token_endpoint_auth_method": "none",
+    "refresh_tokens": true
   }
 ]

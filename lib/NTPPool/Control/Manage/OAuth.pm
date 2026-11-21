@@ -91,8 +91,11 @@ sub _authorize {
 
     # Chromium applies form-action to the 303 back to the client.
     $self->{_consent_form_action} = $data->{form_action_source};
-    $self->tpl_param('client_name', $client_name);
-    $self->tpl_param('oauth_query', $query);
+    $self->tpl_param('client_name',       $client_name);
+    $self->tpl_param('client_host',       $data->{client_host});
+    $self->tpl_param('redirect_host',     $data->{redirect_host});
+    $self->tpl_param('loopback_redirect', $data->{loopback_redirect});
+    $self->tpl_param('oauth_query',       $query);
     return ($status, $self->evaluate_template($template));
 }
 
