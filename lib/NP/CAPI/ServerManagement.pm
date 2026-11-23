@@ -45,7 +45,7 @@ registered) run for every resolved IP; the NTP check then runs on the
 remaining IPs a few at a time until 6 have passed or the check budget runs
 out. IPs that were not checked are returned with not_checked set.
 Authentication: Required via session middleware
-Authorization: User must have access to account
+Authorization: a member of the selected account, or support_staff
     my $result = add_server_precheck(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -58,7 +58,7 @@ server needs a zone, nothing is added and the token is kept. With a
 missing, expired or used token nothing is added; the response carries a
 fresh precheck and a new token (outcome CHECK_EXPIRED).
 Authentication: Required via session middleware
-Authorization: User must have access to account
+Authorization: a member of the selected account, or support_staff
 Requires can_add_servers (fewer than 2 unverified servers); otherwise
 PERMISSION_DENIED and nothing is added
     my $result = add_server(
@@ -68,7 +68,8 @@ PERMISSION_DENIED and nothing is added
 
     # UpdateServer updates server configuration
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: a member of the selected account for its servers, or
+support_staff for any server. Only support_staff may set zones.
     my $result = update_server(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -76,7 +77,8 @@ Authorization: User must own server (by account) or be staff
 
     # DeleteServer schedules or cancels server deletion
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: a member of the selected account for its servers, or
+support_staff for any server
 Cancellation requires can_add_servers permission (verified servers in account)
     my $result = delete_server(
         $self->api_auth_params,      # Provides auth and context
@@ -84,8 +86,7 @@ Cancellation requires can_add_servers permission (verified servers in account)
     );
 
     # StartServerVerification initiates the verification process
-Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Not implemented: returns UNIMPLEMENTED
     my $result = start_server_verification(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -94,7 +95,8 @@ Authorization: User must own server (by account) or be staff
     # CompleteServerVerification marks a server verification as complete
 after the user confirms ownership via the verification link.
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: the server is in the selected account, and the user is a
+member of that account or support_staff
     my $result = complete_server_verification(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -111,8 +113,9 @@ Authorization: None required (account context not required for lookup)
 
     # MoveServer moves one or more servers to a different account
 Authentication: Required via session middleware
-Authorization: User must own servers (by account) or be staff
-Authorization: User must have access to target account (via GetRelatedAccounts)
+Authorization: a member of the selected account moves its servers;
+support_staff may move any server. The user must also be a member of the
+target account, or support_staff.
     my $result = move_server(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -196,7 +199,7 @@ registered) run for every resolved IP; the NTP check then runs on the
 remaining IPs a few at a time until 6 have passed or the check budget runs
 out. IPs that were not checked are returned with not_checked set.
 Authentication: Required via session middleware
-Authorization: User must have access to account
+Authorization: a member of the selected account, or support_staff
 
 B<Arguments:>
 
@@ -340,7 +343,7 @@ server needs a zone, nothing is added and the token is kept. With a
 missing, expired or used token nothing is added; the response carries a
 fresh precheck and a new token (outcome CHECK_EXPIRED).
 Authentication: Required via session middleware
-Authorization: User must have access to account
+Authorization: a member of the selected account, or support_staff
 Requires can_add_servers (fewer than 2 unverified servers); otherwise
 PERMISSION_DENIED and nothing is added
 
@@ -503,7 +506,8 @@ sub add_server {
 
 UpdateServer updates server configuration
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: a member of the selected account for its servers, or
+support_staff for any server. Only support_staff may set zones.
 
 B<Arguments:>
 
@@ -518,7 +522,7 @@ B<Arguments:>
  the global "@" zone; a change back adds it.
         in_pool => $value,       # bool
         zones => $value,       # arrayref[string] - zones replaces the server's zones, "@" included, after the netspeed
- rule above (staff only). Leaving "." out doesn't remove the server
+ rule above (support_staff only). Leaving "." out doesn't remove the server
  from it.
     );
 
@@ -623,7 +627,8 @@ sub update_server {
 
 DeleteServer schedules or cancels server deletion
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: a member of the selected account for its servers, or
+support_staff for any server
 Cancellation requires can_add_servers permission (verified servers in account)
 
 B<Arguments:>
@@ -698,8 +703,7 @@ sub delete_server {
 =head2 start_server_verification
 
 StartServerVerification initiates the verification process
-Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Not implemented: returns UNIMPLEMENTED
 
 B<Arguments:>
 
@@ -770,7 +774,8 @@ sub start_server_verification {
 CompleteServerVerification marks a server verification as complete
 after the user confirms ownership via the verification link.
 Authentication: Required via session middleware
-Authorization: User must own server (by account) or be staff
+Authorization: the server is in the selected account, and the user is a
+member of that account or support_staff
 
 B<Arguments:>
 
@@ -998,8 +1003,9 @@ sub get_server_verification {
 
 MoveServer moves one or more servers to a different account
 Authentication: Required via session middleware
-Authorization: User must own servers (by account) or be staff
-Authorization: User must have access to target account (via GetRelatedAccounts)
+Authorization: a member of the selected account moves its servers;
+support_staff may move any server. The user must also be a member of the
+target account, or support_staff.
 
 B<Arguments:>
 
@@ -1007,8 +1013,8 @@ B<Arguments:>
         $self->api_auth_params,      # Provides auth (user/session token) and context (X-Forwarded-For)
         account => $account->{id_token},  # Optional: Account selection token
         server_ips => $value,       # arrayref[string] - server_ips is the list of server IPs to move (required, at least 1)
-        target_account_id_token => $value,       # string - target_account_id_token is the destination account (required)
- Must be validated via GetRelatedAccounts to ensure user has access
+        target_account_id_token => $value,       # string - target_account_id_token is the destination account (required). The
+ user must be a member of it, or support_staff.
     );
 
 B<Returns:>

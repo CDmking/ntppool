@@ -249,7 +249,7 @@ are present. On success writes an audit log row naming the acting staff.
 
     # CancelAccountDeletion clears accounts.deletion_on.
 Authentication: Required via session middleware.
-Authorization: Staff only (support_staff privilege).
+Authorization: members of the account and support_staff.
     my $result = cancel_account_deletion(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -2391,7 +2391,7 @@ sub schedule_account_deletion {
 
 CancelAccountDeletion clears accounts.deletion_on.
 Authentication: Required via session middleware.
-Authorization: Staff only (support_staff privilege).
+Authorization: members of the account and support_staff.
 
 B<Arguments:>
 

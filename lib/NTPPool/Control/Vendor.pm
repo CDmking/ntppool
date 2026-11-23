@@ -115,6 +115,27 @@ sub can_edit_zone {
     return $zone->{status} ne 'Approved';
 }
 
+# _zone_in_account reports whether the zone belongs to the account. Checkout
+# and plan upgrades bill the account's Stripe customer, so the zone has to be
+# that account's. Fails closed: a zone with no account (the API returns an
+# empty token for one) never matches an account whose own token is missing.
+sub _zone_in_account {
+    my ($zone, $account) = @_;
+    my $token = $zone->{account_token};
+    return ($token && $token eq ($account->{id_token} // '')) ? 1 : 0;
+}
+
+# can_bill_zone reports whether the user may buy or change a plan for the zone
+# from the selected account: the API's can_manage_billing (members and vendor
+# admins, on a writable account), and the zone is in that account.
+sub can_bill_zone {
+    my ($self, $zone) = @_;
+    my $account = $self->current_account;
+    return ( $account
+          && $account->{permissions}{can_manage_billing}
+          && _zone_in_account($zone, $account)) ? 1 : 0;
+}
+
 sub render_form {
     my $self = shift;
     my $zone = shift;    # Now a hashref from API, not blessed object
@@ -262,7 +283,9 @@ sub render_zone {
     $self->tpl_param('have_subscription',
         ($account_token && $sub_data->{has_live_subscription}) ? 1 : 0);
 
+    my $can_bill_zone = $self->can_bill_zone($zone);
     $self->tpl_param('can_edit_zone',   $self->can_edit_zone($zone));
+    $self->tpl_param('can_bill_zone',   $can_bill_zone);
     $self->tpl_param('is_vendor_admin', $self->user_is_vendor_admin ? 1 : 0);
 
     # For edit mode, render the form when editable (API enforces the details)
@@ -285,8 +308,9 @@ sub render_zone {
         # The plan picker prices what the account needs: its approved devices
         # plus this zone, as the API computed them. Without the API's answer
         # there is nothing to price, so the picker lists no plans; the
-        # open-source form below it still renders.
-        if (defined $sub_data->{required_devices}) {
+        # open-source form below it still renders. Only those who can bill
+        # the zone see the picker (products.html), so skip it for the rest.
+        if ($can_bill_zone && defined $sub_data->{required_devices}) {
             my ($products, $groups, $group_list) =
               NP::Stripe::product_groups(1, $sub_data->{required_devices});
             if ($products->{error}) {
@@ -299,7 +323,7 @@ sub render_zone {
                 $self->tpl_param('product_group_list', $group_list);
             }
         }
-        else {
+        elsif (!defined $sub_data->{required_devices}) {
             warn "no required_devices for zone $zone->{id_token}; listing no plans"
               . ( ($sub_status && $sub_status->{error})
                   ? " (API error: $sub_status->{error}, trace: "
@@ -747,13 +771,9 @@ sub render_subscription {
             # The session charges the current account's Stripe customer, so
             # the zone it is priced for has to be that account's. A zone URL
             # without the zone's own a= leaves current_account as the
-            # viewer's own account -- staff reach any zone that way -- and
-            # the subscription would land on the wrong account. Fail closed,
-            # as render_plan_upgrade does: a missing token on either side
-            # never compares equal.
-            unless ($zone->{account_token}
-                and $zone->{account_token} eq ($account->{id_token} // ''))
-            {
+            # viewer's own account (vendor admins reach any zone that way),
+            # and the subscription would land on the wrong account.
+            unless (_zone_in_account($zone, $account)) {
                 warn "refusing checkout for zone "
                   . ($zone->{id_token} // 'none')
                   . " of account "
@@ -950,12 +970,7 @@ sub render_plan_upgrade {
 
     # The offer describes the zone's account and the portal session uses the
     # current account's Stripe customer, so the two must be the same account.
-    # Fail closed, as _update_subscription does: a zone with no account (the
-    # API returns an empty token for one) must never match an account whose
-    # own token is missing.
-    unless ($zone->{account_token}
-        and $zone->{account_token} eq ($account->{id_token} // ''))
-    {
+    unless (_zone_in_account($zone, $account)) {
         warn "refusing upgrade for zone "
           . ($zone->{id_token} // 'none')
           . " of account "

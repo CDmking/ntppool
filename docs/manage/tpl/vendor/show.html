@@ -153,9 +153,7 @@
     <div class="col-md-12">
       [% IF need_upgrade %]
         <div>
-        [%# vz.account_token must be truthy as well as equal: TT's == is eq, so two missing tokens would otherwise match and offer a button the upgrade route refuses. %]
-        [% IF combust.current_account.permissions.can_manage_billing && coverage.upgrade && !upgrade_refused
-              && vz.account_token && vz.account_token == combust.current_account.id_token %]
+        [% IF can_bill_zone && coverage.upgrade && !upgrade_refused %]
         <p>
             <br>
             Your plan covers [% coverage.max_devices | format_number %] devices; this zone brings the account to [% coverage.required_devices | format_number %].

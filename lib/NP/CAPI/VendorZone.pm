@@ -29,7 +29,7 @@ NP::CAPI::VendorZone - ConnectRPC client for VendorZoneService
     use NP::CAPI::VendorZone qw(list_vendor_zones get_vendor_zone request_vendor_zone update_vendor_zone submit_vendor_zone update_vendor_zone_status list_vendor_zones_admin get_vendor_zone_form_metadata);
     # ListVendorZones lists vendor zones for an account.
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have access to the account.
+Authorization: lists the zones of the selected account.
     my $result = list_vendor_zones(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
@@ -46,23 +46,25 @@ Authorization: vendor_admin privilege OR user in zone's account.
     # RequestVendorZone creates a new vendor zone request (status=New).
 The request must be submitted and approved before becoming active.
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have edit access to the account.
+Authorization: a member of the selected account, or vendor_admin.
     my $result = request_vendor_zone(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
     );
 
-    # UpdateVendorZone updates vendor zone fields (only when status=New).
+    # UpdateVendorZone updates vendor zone fields.
 Authentication: Required via session middleware (sessions.GetUser).
-Authorization: vendor_admin privilege OR (status=New AND user in account).
+Authorization: a member of the zone's account, or vendor_admin. Only
+vendor_admin may update an Approved zone, and not its name.
     my $result = update_vendor_zone(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
     );
 
-    # SubmitVendorZone submits zone for approval (New -> Pending).
+    # SubmitVendorZone submits zone for approval (New or Rejected -> Pending).
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have edit access to the account.
+Authorization: the zone's account must be selected, and the user must be
+a member of it or vendor_admin.
 Validates: subscription limits or opensource request.
     my $result = submit_vendor_zone(
         $self->api_auth_params,      # Provides auth and context
@@ -169,7 +171,7 @@ OpenTelemetry trace ID for request tracing and debugging. Include this when repo
 
 ListVendorZones lists vendor zones for an account.
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have access to the account.
+Authorization: lists the zones of the selected account.
 
 B<Arguments:>
 
@@ -382,7 +384,7 @@ sub get_vendor_zone {
 RequestVendorZone creates a new vendor zone request (status=New).
 The request must be submitted and approved before becoming active.
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have edit access to the account.
+Authorization: a member of the selected account, or vendor_admin.
 
 B<Arguments:>
 
@@ -517,9 +519,10 @@ sub request_vendor_zone {
 
 =head2 update_vendor_zone
 
-UpdateVendorZone updates vendor zone fields (only when status=New).
+UpdateVendorZone updates vendor zone fields.
 Authentication: Required via session middleware (sessions.GetUser).
-Authorization: vendor_admin privilege OR (status=New AND user in account).
+Authorization: a member of the zone's account, or vendor_admin. Only
+vendor_admin may update an Approved zone, and not its name.
 
 B<Arguments:>
 
@@ -631,9 +634,10 @@ sub update_vendor_zone {
 
 =head2 submit_vendor_zone
 
-SubmitVendorZone submits zone for approval (New -> Pending).
+SubmitVendorZone submits zone for approval (New or Rejected -> Pending).
 Authentication: Required via session middleware (sessions.GetAccount).
-Authorization: User must have edit access to the account.
+Authorization: the zone's account must be selected, and the user must be
+a member of it or vendor_admin.
 Validates: subscription limits or opensource request.
 
 B<Arguments:>
