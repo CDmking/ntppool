@@ -1,3 +1,5 @@
+[% IF combust.current_account.permissions.can_manage_billing
+      && vz.account_token && vz.account_token == combust.current_account.id_token %]
 [% page.js.push("ntppool.js"); USE Number.Format; %]
 
 <div class="row product-header">
@@ -133,6 +135,7 @@
 
 </div>
 [% END # for product_groups %]
+[% END # can manage billing %]
 
 
 [% PROCESS tpl/vendor/_opensource.html %]

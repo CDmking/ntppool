@@ -58,6 +58,10 @@ sub manage_dispatch {
     return $self->render_plan_upgraded
       if $self->request->uri eq '/manage/vendor/plan/upgraded';
 
+    return $self->redirect($self->manage_url('/manage/vendor'))
+      if $self->request->uri eq '/manage/vendor/plan/create_session'
+      && $self->request->method ne 'post';
+
     return $self->render_subscription
       if $self->request->uri =~ m!^/manage/vendor/plan!;
 
@@ -618,8 +622,8 @@ sub _update_subscription {
 # _stripe_customer_email returns the email address for the account's new
 # Stripe customer, or undef and the error to show. Stripe sends the account's
 # receipts there, so it is a member's address: the user's own if they are a
-# member, otherwise (staff starting the checkout) the only member's. With
-# several members there is no telling whose it should be.
+# member, otherwise the only active member's when a vendor admin starts
+# checkout. With several active members, one of them starts checkout.
 #
 # Called before the customer is created: the API refuses to save the customer
 # for a user who may not change the account, and the customer would be left
@@ -642,21 +646,28 @@ sub _stripe_customer_email {
     return $user->{email} if grep { $_->{user_id} eq $user->{user_id} } @$users;
 
     return undef, "You do not have access to this account."
-      unless $self->user_is_staff || $self->user_is_vendor_admin;
+      unless $self->user_is_vendor_admin;
 
-    return undef, "The account has no members to bill." unless @$users;
-    return undef,
-      "The account has several members; one of them has to start the checkout."
-      if @$users > 1;
+    my @members = grep { !$_->{deletion_on} } @$users;
+    return undef, "The account has no members to bill." unless @members;
+    return undef, "The account has several members. One of them has to start checkout."
+      if @members > 1;
 
-    return $users->[0]{email};
+    return $members[0]{email};
+}
+
+sub _render_checkout_error {
+    my ($self, $message, $back_url, $status) = @_;
+    $self->tpl_param('checkout_error',    $message);
+    $self->tpl_param('checkout_back_url', $back_url);
+    return $status // OK, $self->evaluate_template('tpl/vendor/checkout_error.html');
 }
 
 sub render_subscription {
     my $self = shift;
 
     my $account = $self->current_account;
-    return FORBIDDEN unless $account && $account->{permissions}{can_edit};
+    return FORBIDDEN unless $account && $account->{permissions}{can_manage_billing};
 
     $self->tpl_param('account' => $account);
 
@@ -698,8 +709,28 @@ sub render_subscription {
         }
     );
 
-    my $product_id = $self->req_param('product_id') || '';
-    my $price_id   = $self->req_param('price_id')   || '';
+    my $product_id     = $self->req_param('product_id') || '';
+    my $price_id       = $self->req_param('price_id')   || '';
+    my $create_session = $self->request->uri eq '/manage/vendor/plan/create_session';
+    my $checkout_back_url;
+    if ($zone) {
+        $checkout_back_url =
+          $self->manage_url('/manage/vendor/zone', {id => $zone->{id_token}});
+    }
+    elsif ($product_id) {
+        $checkout_back_url =
+          $self->manage_url('/manage/vendor/plan', {product_id => $product_id});
+    }
+    else {
+        $checkout_back_url = $self->manage_url('/manage/vendor');
+    }
+
+    my $checkout_unavailable = "Checkout is temporarily unavailable.";
+
+    if ($create_session && !($product_id && $price_id)) {
+        return $self->_render_checkout_error("Choose a plan to continue.",
+            $checkout_back_url);
+    }
 
     warn "product_id: $product_id";
     warn "price_id:   $price_id";
@@ -742,9 +773,8 @@ sub render_subscription {
                   . $status->{error}
                   . " (trace: "
                   . ($status->{trace_id} || 'none') . ")";
-                return OK,
-                  $json->encode({error => "Could not start checkout; please try again."}),
-                  'application/json; charset=utf-8';
+                return $self->_render_checkout_error($checkout_unavailable,
+                    $checkout_back_url);
             }
             $required_devices = $status->{data}{required_devices};
 
@@ -755,9 +785,8 @@ sub render_subscription {
                 warn "no required_devices for zone "
                   . ($zone->{id_token} // 'none')
                   . "; refusing checkout";
-                return OK,
-                  $json->encode({error => "Could not start checkout; please try again."}),
-                  'application/json; charset=utf-8';
+                return $self->_render_checkout_error($checkout_unavailable,
+                    $checkout_back_url);
             }
         }
 
@@ -767,6 +796,9 @@ sub render_subscription {
         warn "STRIPE: ", Data::Dump::pp($products);
         if ($products->{error}) {
             warn "stripe gw error: ", $products->{error};
+            return $self->_render_checkout_error($checkout_unavailable,
+                $checkout_back_url, 500)
+              if $create_session;
             return 500;
         }
 
@@ -774,20 +806,14 @@ sub render_subscription {
           grep { $_->{ID} eq $product_id } @{$products->{Products}};
         $self->tpl_param('pr', $product);
 
-        if (   $price_id
-            && $self->request->uri eq '/manage/vendor/plan/create_session')
-        {
+        if ($create_session) {
             my ($plan) =
               grep { $_->{ID} eq $price_id } @{$product ? $product->{Plans} : []};
             unless ($plan) {
                 warn "price $price_id is not a plan of product $product_id";
-                return OK, $json->encode({error => "Unknown plan; please choose again."}),
-                  'application/json; charset=utf-8';
+                return $self->_render_checkout_error("That plan is unavailable.",
+                    $checkout_back_url);
             }
-
-            # A frozen account (deletion_on set) never reaches here: the
-            # can_edit gate at the top of this sub is the API's
-            # !deletion_on (AccountWritable), so checkout is already refused.
 
             # TODO:
             #  - take parameters to create session for the right price
@@ -801,18 +827,20 @@ sub render_subscription {
             if ($plan->{TiersMode} ne "") {
                 unless ($zone) {
                     warn "refusing tiered checkout for price $price_id without a zone";
-                    return OK,
-                      $json->encode({error => "Choose a plan from the zone's page."}),
-                      'application/json; charset=utf-8';
+                    return $self->_render_checkout_error(
+                        "Choose a plan from the zone's page.",
+                        $checkout_back_url);
                 }
                 $quantity = 0 + $required_devices;
             }
 
             unless ($account->{stripe_customer_id}) {
                 my ($email, $email_error) = $self->_stripe_customer_email($account);
-                return OK, $json->encode({error => $email_error}),
-                  'application/json; charset=utf-8'
-                  unless $email;
+                unless ($email) {
+                    return $self->_render_checkout_error($email_error
+                          // $checkout_unavailable,
+                        $checkout_back_url,);
+                }
 
                 my $customer = NP::Stripe::create_customer(
                     email       => $email,
@@ -830,10 +858,8 @@ sub render_subscription {
                 unless ($customer && $customer->{id}) {
                     warn "Failed to create stripe customer: ",
                       (($customer && $customer->{error}) || 'no id returned');
-                    return OK,
-                      $json->encode(
-                          {error => "Could not start checkout; please try again."}),
-                      'application/json; charset=utf-8';
+                    return $self->_render_checkout_error($checkout_unavailable,
+                        $checkout_back_url);
                 }
 
                 my $update_result = update_account_stripe_customer(
@@ -846,10 +872,9 @@ sub render_subscription {
                       . $update_result->{error}
                       . " (trace: "
                       . ($update_result->{trace_id} || 'none') . ")";
-                    return OK,
-                      $json->encode(
-                          {error => "Could not start checkout; please try again."}),
-                      'application/json; charset=utf-8';
+                    return $self->_render_checkout_error(
+                        "We couldn't save the billing details.",
+                        $checkout_back_url,);
                 }
 
                 # Update local copy for immediate use
@@ -872,14 +897,10 @@ sub render_subscription {
             my $session = NP::Stripe::create_session(%args);
             if ($session->{error}) {
                 warn "create session error: ", $session->{error};
-
-                # TODO: formatted error page
-                return OK, $json->encode({error => $session->{error}}),
-                  'application/json; charset=utf-8';
+                return $self->_render_checkout_error($session->{error},
+                    $checkout_back_url);
             }
             return $self->redirect($session->{url});
-
-            #return OK, $json->encode({checkoutSessionId => $session->{id}});
         }
 
         return OK, $self->evaluate_template('tpl/vendor/subscription.html');
@@ -902,14 +923,13 @@ sub render_subscription {
 # render_plan_upgrade sends the vendor to Stripe's billing portal to raise
 # the quantity on their tiered subscription. The subscription and quantity
 # come from the API's upgrade offer, fetched again here; the form only names
-# the zone. Anyone who can edit the current account may upgrade, staff who
-# switched into it included, but only for a zone of that account: the Stripe
-# customer is the current account's.
+# the zone. Account members and vendor admins may upgrade a plan for a zone
+# in the selected account, which supplies the Stripe customer.
 sub render_plan_upgrade {
     my $self = shift;
 
     my $account = $self->current_account;
-    return FORBIDDEN unless $account && $account->{permissions}{can_edit};
+    return FORBIDDEN unless $account && $account->{permissions}{can_manage_billing};
 
     my $id = $self->_get_id
       or return $self->redirect($self->manage_url('/manage/vendor'));
@@ -997,7 +1017,7 @@ sub render_plan_upgraded {
     my $self = shift;
 
     my $account = $self->current_account;
-    return FORBIDDEN unless $account && $account->{permissions}{can_edit};
+    return FORBIDDEN unless $account && $account->{permissions}{can_manage_billing};
 
     my $id = $self->_get_id
       or return $self->redirect($self->manage_url('/manage/vendor'));
@@ -1025,7 +1045,7 @@ sub render_billing {
     my $self = shift;
 
     my $account = $self->current_account;
-    return FORBIDDEN unless $account && $account->{permissions}{can_edit};
+    return FORBIDDEN unless $account && $account->{permissions}{can_manage_billing};
 
     my $return_url = $self->manage_url('/manage/vendor', {a => $account->{id_token}});
 

@@ -495,6 +495,7 @@ Hashref with structure:
  - Allow if no servers yet
  - Block if 2+ unverified servers
  - Otherwise allow
+                can_manage_billing => ...,  # bool - can_manage_billing: Account is writable and the user is a member or vendor admin.
             },  # hashref (AccountPermissions) - permissions for the authenticated user on this account
  Only present if account is present
             privileges => {
@@ -1911,6 +1912,7 @@ Hashref with structure:
  - Allow if no servers yet
  - Block if 2+ unverified servers
  - Otherwise allow
+                can_manage_billing => ...,  # bool - can_manage_billing: Account is writable and the user is a member or vendor admin.
             },  # hashref (AccountPermissions) - Optional fields (based on mode or custom flags)
             users => [
             {
