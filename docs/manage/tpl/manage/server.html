@@ -1,18 +1,23 @@
 <a name="s-[% server.ip %]"></a>
 <span id="server_[% server.id %]">
+    [% can_edit_server = server.netspeed_options.size > 0 %]
+    [% IF can_edit_server %]
     <form method="post" action="/manage/server/update/server">
         <input type="hidden" name="auth_token" value="[% combust.auth_token %]">
         <input type="hidden" name="a" value="[% combust.current_account.id_token %]">
+    [% END %]
 
         [% IF server.hostname %]Hostname: <b>[% server.hostname | html %]</b><br />[% END %]
         IP: <b><a href="[% IF combust.user_is_staff %][% combust.manage_url(server.url, { a => combust.current_account.id_token }) %][% ELSE %][% combust.www_url(server.url) %][% END %]">[% server.ip | html %]</a></b>
         [% IF server.verification.verified_on %]
         &nbsp;&check; <!-- &#x2705; -->
-        [% ELSE %]
+        [% ELSIF can_edit_server %]
         <br>
         <a href="[% combust.manage_url('/manage/server/verify/', server => server.ip) %]">&cross;</a>
         <a href="[% combust.manage_url('/manage/server/verify/', server => server.ip) %]">Unverified</a>
-
+        [% ELSE %]
+        <br>
+        Unverified
         [% END %]
         <br>
 
@@ -28,12 +33,12 @@
         [% PROCESS tpl/manage/server_zones.html %]
         <br />
 
-        <input type="hidden" name="server" value="[% server.id %]">
-
         <a href="#netspeed">Net speed</a>:
         <span id="netspeed_[% server.id %]">[% combust.netspeed_human(server.netspeed) %]
         </span>
-                |
+        [% IF can_edit_server %]
+        <input type="hidden" name="server" value="[% server.id %]">
+        |
         <select name="netspeed"
                 hx-post="/manage/server/update/netspeed"
                 hx-target="#server_[% server.id %]"
@@ -65,12 +70,14 @@
         <noscript>
             <input type="submit" name="Update" value="Update">
         </noscript>
+        [% END %]
         [% IF error %]
         <div class="mt-2">
             [% PROCESS tpl/common/error_alert.html %]
         </div>
         [% END %]
 
+        [% IF can_edit_server %]
         <br>
         [% IF server.deletion_on %]
         <input type="submit" name="Delete" class="btn btn-outline-secondary btn-sm" value="Cancel Deletion">
@@ -81,4 +88,5 @@
         <br><br>
 
     </form>
+    [% END %]
 </span>
