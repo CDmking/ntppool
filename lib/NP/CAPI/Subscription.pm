@@ -12,6 +12,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw(
     process_stripe_webhook
     update_account_stripe_customer
+    get_stripe_customer_email
     get_account_subscription_status
     get_account_subscriptions
     SUBMIT_STATE_UNSPECIFIED
@@ -34,7 +35,7 @@ NP::CAPI::Subscription - ConnectRPC client for SubscriptionService
 
 =head1 SYNOPSIS
 
-    use NP::CAPI::Subscription qw(process_stripe_webhook update_account_stripe_customer get_account_subscription_status get_account_subscriptions);
+    use NP::CAPI::Subscription qw(process_stripe_webhook update_account_stripe_customer get_stripe_customer_email get_account_subscription_status get_account_subscriptions);
     # Call ProcessStripeWebhook RPC method
     my $result = process_stripe_webhook(
         $self->api_auth_params,      # Provides auth and context
@@ -43,6 +44,18 @@ NP::CAPI::Subscription - ConnectRPC client for SubscriptionService
 
     # Call UpdateAccountStripeCustomer RPC method
     my $result = update_account_stripe_customer(
+        $self->api_auth_params,      # Provides auth and context
+        account => $account->{id_token},
+    );
+
+    # GetStripeCustomerEmail returns the email address for the selected
+account's new Stripe customer. Stripe sends the account's receipts there,
+so it is a member's: the caller's own when they are a member, otherwise
+(for vendor_admin) the only member not scheduled for deletion.
+Authorization: members and vendor_admin, on a writable account, as for
+UpdateAccountStripeCustomer. FAILED_PRECONDITION, with a message for the
+user, when the account has no such member or several.
+    my $result = get_stripe_customer_email(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
     );
@@ -312,6 +325,76 @@ sub update_account_stripe_customer {
     return connect_rpc(
         service     => 'ntppool.subscription.v1.SubscriptionService',
         method      => 'UpdateAccountStripeCustomer',
+        request     => \%request,
+        %args  # Pass through auth, account, context
+    );
+}
+
+
+=head2 get_stripe_customer_email
+
+GetStripeCustomerEmail returns the email address for the selected
+account's new Stripe customer. Stripe sends the account's receipts there,
+so it is a member's: the caller's own when they are a member, otherwise
+(for vendor_admin) the only member not scheduled for deletion.
+Authorization: members and vendor_admin, on a writable account, as for
+UpdateAccountStripeCustomer. FAILED_PRECONDITION, with a message for the
+user, when the account has no such member or several.
+
+B<Arguments:>
+
+    my $result = get_stripe_customer_email(
+        $self->api_auth_params,      # Provides auth (user/session token) and context (X-Forwarded-For)
+        account => $account->{id_token},  # Optional: Account selection token
+    );
+
+B<Returns:>
+
+Hashref with structure:
+
+    {
+        code         => 200,         # HTTP status code
+        status_line  => "200 OK",    # HTTP status text
+        connect_code => undef,       # ConnectRPC error code (or undef)
+        data         => {            # Response data
+            email => ...,  # string
+        },
+        error        => undef,       # Error message (if any)
+        trace_id     => "...",       # OpenTelemetry trace ID
+    }
+
+B<ConnectRPC Error Codes:>
+
+    unauthenticated, permission_denied, internal, invalid_argument, etc.
+
+B<Example:>
+
+    my $result = get_stripe_customer_email(
+        $self->api_auth_params,           # Provides auth and context
+        account => $account->{id_token},  # Account from hashref
+    );
+
+    if ($result->{error}) {
+        warn "Error: $result->{error}";
+    } else {
+        my $data = $result->{data};
+        # Use response fields...
+    }
+
+=cut
+
+sub get_stripe_customer_email {
+    my $validation_error = validate_key_value_args('get_stripe_customer_email', @_);
+    return $validation_error if $validation_error;
+
+    my %args = @_;
+
+    # Extract request fields from args
+    my %request = ();
+
+    return connect_rpc(
+        service     => 'ntppool.subscription.v1.SubscriptionService',
+        method      => 'GetStripeCustomerEmail',
         request     => \%request,
         %args  # Pass through auth, account, context
     );

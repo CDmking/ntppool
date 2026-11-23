@@ -17,10 +17,10 @@ use NP::CAPI::VendorZone qw(
     list_vendor_zones_admin
     get_vendor_zone_form_metadata
 );
-use NP::CAPI::Account      qw(get_account_users);
 use NP::CAPI::Subscription qw(
     get_account_subscriptions
     get_account_subscription_status
+    get_stripe_customer_email
     update_account_stripe_customer
 );
 use JSON::XS ();
@@ -644,40 +644,33 @@ sub _update_subscription {
 }
 
 # _stripe_customer_email returns the email address for the account's new
-# Stripe customer, or undef and the error to show. Stripe sends the account's
-# receipts there, so it is a member's address: the user's own if they are a
-# member, otherwise the only active member's when a vendor admin starts
-# checkout. With several active members, one of them starts checkout.
+# Stripe customer, or undef and the error to show. The API decides whose
+# address it is (a member's) and who may start the checkout.
 #
-# Called before the customer is created: the API refuses to save the customer
-# for a user who may not change the account, and the customer would be left
-# unused in Stripe.
+# Called before the customer is created, so a refusal leaves no unused
+# customer in Stripe.
 sub _stripe_customer_email {
     my ($self, $account) = @_;
 
-    my $result =
-      get_account_users($self->api_auth_params, account => $account->{id_token});
-    if ($result->{error}) {
-        warn "Failed to get account users for checkout: "
-          . $result->{error}
-          . " (trace: "
-          . ($result->{trace_id} || 'none') . ")";
-        return undef, "Could not start checkout; please try again.";
-    }
-    my $users = $result->{data}{users} || [];
+    my $result = get_stripe_customer_email(
+        $self->api_auth_params,
+        account        => $account->{id_token},
+        expected_codes => ['failed_precondition', 'permission_denied'],
+    );
+    return $result->{data}{email} unless $result->{error};
 
-    my $user = $self->user;
-    return $user->{email} if grep { $_->{user_id} eq $user->{user_id} } @$users;
+    my $code = $result->{connect_code} // '';
 
+    # The API's message says why: no member to bill, or several.
+    return undef, $result->{error} if $code eq 'failed_precondition';
     return undef, "You do not have access to this account."
-      unless $self->user_is_vendor_admin;
+      if $code eq 'permission_denied';
 
-    my @members = grep { !$_->{deletion_on} } @$users;
-    return undef, "The account has no members to bill." unless @members;
-    return undef, "The account has several members. One of them has to start checkout."
-      if @members > 1;
-
-    return $members[0]{email};
+    warn "Failed to get the Stripe customer email: "
+      . $result->{error}
+      . " (trace: "
+      . ($result->{trace_id} || 'none') . ")";
+    return undef, "Could not start checkout; please try again.";
 }
 
 sub _render_checkout_error {
