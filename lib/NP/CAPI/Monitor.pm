@@ -242,6 +242,12 @@ B<Arguments:>
         $self->api_auth_params,      # Provides auth (user/session token) and context (X-Forwarded-For)
         account => $account->{id_token},  # Optional: Account selection token
         all_accounts => $value,       # bool
+        ip => $value,       # string - Filters and limit require all_accounts. Filters match a current address
+ row. The response includes both addresses of each matching monitor.
+        hostname => $value,       # string
+        status => $value,       # string
+        limit => $value,       # int - Maximum number of grouped monitors, between 1 and 50. A filtered request
+ without a limit defaults to 25.
     );
 
 B<Returns:>
@@ -278,6 +284,7 @@ Hashref with structure:
             },
             # ... more items
         ],  # arrayref[hashref (Monitor)]
+            truncated => ...,  # bool
         },
         error        => undef,       # Error message (if any)
         trace_id     => "...",       # OpenTelemetry trace ID
@@ -290,6 +297,9 @@ The C<data> field contains:
 =over 4
 
 =item * B<monitors> (arrayref[hashref (Monitor)])
+
+
+=item * B<truncated> (bool)
 
 
 =back
@@ -323,6 +333,10 @@ sub list_monitors {
     # Extract request fields from args
     my %request = ();
     $request{'all_accounts'} = delete $args{'all_accounts'} if exists $args{'all_accounts'};
+    $request{'ip'} = delete $args{'ip'} if exists $args{'ip'};
+    $request{'hostname'} = delete $args{'hostname'} if exists $args{'hostname'};
+    $request{'status'} = delete $args{'status'} if exists $args{'status'};
+    $request{'limit'} = delete $args{'limit'} if exists $args{'limit'};
 
     return connect_rpc(
         service     => 'ntppool.monitor.v1.MonitorService',

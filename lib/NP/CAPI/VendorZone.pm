@@ -211,6 +211,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },
             # ... more items
         ],  # arrayref[hashref (VendorZone)] - zones is the list of vendor zones
@@ -317,6 +318,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },  # hashref (VendorZone) - zone contains the complete vendor zone details
         },
         error        => undef,       # Error message (if any)
@@ -432,6 +434,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },  # hashref (VendorZone) - zone contains the complete vendor zone details
         },
         error        => undef,       # Error message (if any)
@@ -561,6 +564,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },  # hashref (VendorZone) - zone contains the updated vendor zone
         },
         error        => undef,       # Error message (if any)
@@ -678,6 +682,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },  # hashref (VendorZone) - zone contains the complete vendor zone details (for email template)
             email_sent => ...,  # bool - email_sent indicates if the notification email was sent successfully
             user_email => ...,  # string - user_email is the zone owner's email address
@@ -818,6 +823,7 @@ Hashref with structure:
                 opensource_requested => ...,  # bool - opensource_requested is the vendor's claim ("applying as open source").
                 opensource_approved => ...,  # bool - opensource_approved is staff's determination (unset = undecided).
                 rejection_reason => ...,  # string - rejection_reason is the staff note returned only to vendor_admin callers.
+                modified_on => ...,  # string - modified_on is when the zone was last modified (RFC3339).
             },  # hashref (VendorZone) - zone contains the complete vendor zone details (for email template)
             user_email => ...,  # string - user_email is the zone owner's email address (for approval emails)
             email_sent => ...,  # bool - email_sent indicates if the notification email was sent successfully
@@ -915,7 +921,13 @@ B<Arguments:>
         $self->api_auth_params,      # Provides auth (user/session token) and context (X-Forwarded-For)
         account => $account->{id_token},  # Optional: Account selection token
         status => $value,       # string - status filters by status (optional, e.g., "Pending")
-        sort_by => $value,       # string - sort_by specifies sort order (optional, default: created_on desc)
+        sort_by => $value,       # string - sort_by accepts "created_on" for oldest first. When unset, zones with
+ the newest current subscriptions come first, then newest zone IDs.
+        query => $value,       # string - query matches zone name, organization name, account name, or requester
+ email by literal substring, ignoring case. It also matches a zone token
+ exactly or a zone hostname ignoring case. Exact zone matches sort first.
+        account_token => $value,       # string - account_token restricts the list to the account that owns the zone.
+        limit => $value,       # int - limit caps the number of results to 1–200 rows. Unset means unlimited.
     );
 
 B<Returns:>
@@ -932,10 +944,13 @@ Hashref with structure:
                 zone => ...,  # hashref (VendorZone) - zone contains the complete vendor zone
                 account_name => ...,  # string - account_name is the account name
                 user_email => ...,  # string - user_email is the zone owner's email address
-                subscription_created_on => ...,  # string - subscription_created_on is when the subscription started (RFC3339, empty if no subscription)
+                subscription_created_on => ...,  # string - subscription_created_on is the creation time of the newest subscription
+ without an end date (RFC3339), regardless of its status.
+                exact_match => ...,  # bool - exact_match indicates that query matched the zone name, token, or hostname.
             },
             # ... more items
         ],  # arrayref[hashref (VendorZoneAdmin)] - zones is the list of vendor zones with account details
+            truncated => ...,  # bool - truncated indicates that more rows matched than the requested limit.
         },
         error        => undef,       # Error message (if any)
         trace_id     => "...",       # OpenTelemetry trace ID
@@ -950,6 +965,11 @@ The C<data> field contains:
 =item * B<zones> (arrayref[hashref (VendorZoneAdmin)])
 
 zones is the list of vendor zones with account details
+
+
+=item * B<truncated> (bool)
+
+truncated indicates that more rows matched than the requested limit.
 
 
 =back
@@ -984,6 +1004,9 @@ sub list_vendor_zones_admin {
     my %request = ();
     $request{'status'} = delete $args{'status'} if exists $args{'status'};
     $request{'sort_by'} = delete $args{'sort_by'} if exists $args{'sort_by'};
+    $request{'query'} = delete $args{'query'} if exists $args{'query'};
+    $request{'account_token'} = delete $args{'account_token'} if exists $args{'account_token'};
+    $request{'limit'} = delete $args{'limit'} if exists $args{'limit'};
 
     return connect_rpc(
         service     => 'ntppool.vendorzone.v1.VendorZoneService',

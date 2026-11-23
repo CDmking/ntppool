@@ -11,7 +11,18 @@ use Exporter 'import';
 
 our @EXPORT_OK = qw(
     search
+    search_entities
+    ENTITY_TYPE_UNSPECIFIED
+    ENTITY_TYPE_USER
+    ENTITY_TYPE_SERVER
 );
+
+# Enum constants
+use constant {
+    ENTITY_TYPE_UNSPECIFIED => 'ENTITY_TYPE_UNSPECIFIED',
+    ENTITY_TYPE_USER => 'ENTITY_TYPE_USER',
+    ENTITY_TYPE_SERVER => 'ENTITY_TYPE_SERVER',
+};
 
 =head1 NAME
 
@@ -19,7 +30,7 @@ NP::CAPI::Search - ConnectRPC client for SearchService
 
 =head1 SYNOPSIS
 
-    use NP::CAPI::Search qw(search);
+    use NP::CAPI::Search qw(search search_entities);
     # Search dispatches a query across accounts, users, servers, and monitors.
 The query is interpreted by prefix/shape: an IP address searches
 servers/monitors by IP; "id:N" looks up an account by numeric ID;
@@ -27,8 +38,15 @@ servers/monitors by IP; "id:N" looks up an account by numeric ID;
 accounts with servers in that zone; anything else is a pattern search
 across account/user/server/monitor fields.
 Authentication: Required via session middleware.
-Authorization: Staff only (support_staff privilege required).
+Authorization: Any staff role (support_staff, vendor_admin, or monitor_admin).
     my $result = search(
+        $self->api_auth_params,      # Provides auth and context
+        account => $account->{id_token},
+    );
+
+    # SearchEntities returns bounded matches for a single entity type.
+User searches require support_staff. Server searches allow any staff role.
+    my $result = search_entities(
         $self->api_auth_params,      # Provides auth and context
         account => $account->{id_token},
     );
@@ -112,7 +130,7 @@ servers/monitors by IP; "id:N" looks up an account by numeric ID;
 accounts with servers in that zone; anything else is a pattern search
 across account/user/server/monitor fields.
 Authentication: Required via session middleware.
-Authorization: Staff only (support_staff privilege required).
+Authorization: Any staff role (support_staff, vendor_admin, or monitor_admin).
 
 B<Arguments:>
 
@@ -210,6 +228,137 @@ sub search {
     return connect_rpc(
         service     => 'ntppool.search.v1.SearchService',
         method      => 'Search',
+        request     => \%request,
+        http_method => 'GET',  # Side-effect free, use GET
+        %args  # Pass through auth, account, context
+    );
+}
+
+
+=head2 search_entities
+
+SearchEntities returns bounded matches for a single entity type.
+User searches require support_staff. Server searches allow any staff role.
+
+B<Arguments:>
+
+    my $result = search_entities(
+        $self->api_auth_params,      # Provides auth (user/session token) and context (X-Forwarded-For)
+        account => $account->{id_token},  # Optional: Account selection token
+        entity => $value,       # string (enum: EntityType)
+        query => $value,       # string - Literal case-insensitive substring. An exact hostname suppresses partial matches.
+        limit => $value,       # int - Defaults to 25, with a maximum of 50.
+    );
+
+B<Returns:>
+
+Hashref with structure:
+
+    {
+        code         => 200,         # HTTP status code
+        status_line  => "200 OK",    # HTTP status text
+        connect_code => undef,       # ConnectRPC error code (or undef)
+        data         => {            # Response data
+            users => [
+            {
+                id_token => ...,  # string
+                name => ...,  # string
+                username => ...,  # string
+                email => ...,  # string
+                accounts => ...,  # hashref (UserAccountSummary)
+            },
+            # ... more items
+        ],  # arrayref[hashref (UserMatch)]
+            servers => [
+            {
+                id => ...,  # int - id is the database ID of the server
+                ip => ...,  # string - ip is the IP address (IPv4 or IPv6)
+                hostname => ...,  # string - hostname is the DNS hostname (may be empty)
+                ip_version => ...,  # int - ip_version is 4 or 6
+                url => ...,  # string - url is the relative URL to the server scores page (e.g., "/scores/192.0.2.1")
+                account => ...,  # hashref (AccountInfo) - account contains account information (conditionally included)
+ Included if: account.public_profile=true OR authenticated user owns server OR user is staff
+                zones => ...,  # hashref (ZoneReference) - zones this server is assigned to (excludes root '.' zone)
+                stratum => ...,  # int - stratum is the NTP stratum level
+                in_pool => ...,  # bool - in_pool indicates if the server is active in the pool
+                score_raw => ...,  # number - score_raw is the current raw score
+                netspeed => ...,  # int - netspeed is the configured network speed weight
+                user_urls => ...,  # string - user_urls are user-provided traffic/stats URLs
+                verification => ...,  # hashref (ServerVerification) - verification contains verification status
+                deletion_on => ...,  # string - deletion_on is when the server is/was scheduled for deletion (ISO 8601)
+ Empty if not scheduled for deletion
+                deleted => ...,  # bool - deleted is true once deletion_on has passed (deletion_on <= today, UTC)
+                history_hidden => ...,  # bool - history_hidden is true once the server has been deleted for more than
+ 6 months; clients should hide score history and graphs
+                netspeed_options => ...,  # hashref (NetspeedOption) - netspeed_options are the netspeed settings this server can be set to,
+ ascending. Set only when the caller can edit the server (GetServer with
+ require_edit_permission, GetAccountServers by id_token, UpdateServer).
+                score_updated_at => ...,  # hashref (Timestamp) - score_updated_at is set by GetServer when the server has a recorded score.
+            },
+            # ... more items
+        ],  # arrayref[hashref (Server)] - Server summaries include hostname, score, pool and deletion state, zones,
+ the scores URL, and the owning account token when known.
+            truncated => ...,  # bool
+        },
+        error        => undef,       # Error message (if any)
+        trace_id     => "...",       # OpenTelemetry trace ID
+    }
+
+B<Response Data Structure:>
+
+The C<data> field contains:
+
+=over 4
+
+=item * B<users> (arrayref[hashref (UserMatch)])
+
+
+=item * B<servers> (arrayref[hashref (Server)])
+
+Server summaries include hostname, score, pool and deletion state, zones,
+ the scores URL, and the owning account token when known.
+
+
+=item * B<truncated> (bool)
+
+
+=back
+
+B<ConnectRPC Error Codes:>
+
+    unauthenticated, permission_denied, internal, invalid_argument, etc.
+
+B<Example:>
+
+    my $result = search_entities(
+        $self->api_auth_params,           # Provides auth and context
+        account => $account->{id_token},  # Account from hashref
+    );
+
+    if ($result->{error}) {
+        warn "Error: $result->{error}";
+    } else {
+        my $data = $result->{data};
+        # Use response fields...
+    }
+
+=cut
+
+sub search_entities {
+    my $validation_error = validate_key_value_args('search_entities', @_);
+    return $validation_error if $validation_error;
+
+    my %args = @_;
+
+    # Extract request fields from args
+    my %request = ();
+    $request{'entity'} = delete $args{'entity'} if exists $args{'entity'};
+    $request{'query'} = delete $args{'query'} if exists $args{'query'};
+    $request{'limit'} = delete $args{'limit'} if exists $args{'limit'};
+
+    return connect_rpc(
+        service     => 'ntppool.search.v1.SearchService',
+        method      => 'SearchEntities',
         request     => \%request,
         http_method => 'GET',  # Side-effect free, use GET
         %args  # Pass through auth, account, context

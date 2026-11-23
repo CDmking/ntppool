@@ -483,6 +483,8 @@ Hashref with structure:
             },
             # ... more items
         ],  # arrayref[hashref (AccountSubscription)]
+            stripe_customer_id => ...,  # string - Stripe customer metadata is present when the account has a customer.
+            stripe_customer_dashboard_link => ...,  # string
         },
         error        => undef,       # Error message (if any)
         trace_id     => "...",       # OpenTelemetry trace ID
@@ -495,6 +497,14 @@ The C<data> field contains:
 =over 4
 
 =item * B<subscriptions> (arrayref[hashref (AccountSubscription)])
+
+
+=item * B<stripe_customer_id> (string)
+
+Stripe customer metadata is present when the account has a customer.
+
+
+=item * B<stripe_customer_dashboard_link> (string)
 
 
 =back
