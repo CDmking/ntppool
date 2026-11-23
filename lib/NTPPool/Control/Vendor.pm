@@ -17,6 +17,7 @@ use NP::CAPI::VendorZone qw(
     list_vendor_zones_admin
     get_vendor_zone_form_metadata
 );
+use NP::CAPI::Account      qw(get_account_users);
 use NP::CAPI::Subscription qw(
     get_account_subscriptions
     get_account_subscription_status
@@ -614,6 +615,43 @@ sub _update_subscription {
     return 200, "finished processing session";
 }
 
+# _stripe_customer_email returns the email address for the account's new
+# Stripe customer, or undef and the error to show. Stripe sends the account's
+# receipts there, so it is a member's address: the user's own if they are a
+# member, otherwise (staff starting the checkout) the only member's. With
+# several members there is no telling whose it should be.
+#
+# Called before the customer is created: the API refuses to save the customer
+# for a user who may not change the account, and the customer would be left
+# unused in Stripe.
+sub _stripe_customer_email {
+    my ($self, $account) = @_;
+
+    my $result =
+      get_account_users($self->api_auth_params, account => $account->{id_token});
+    if ($result->{error}) {
+        warn "Failed to get account users for checkout: "
+          . $result->{error}
+          . " (trace: "
+          . ($result->{trace_id} || 'none') . ")";
+        return undef, "Could not start checkout; please try again.";
+    }
+    my $users = $result->{data}{users} || [];
+
+    my $user = $self->user;
+    return $user->{email} if grep { $_->{user_id} eq $user->{user_id} } @$users;
+
+    return undef, "You do not have access to this account."
+      unless $self->user_is_staff || $self->user_is_vendor_admin;
+
+    return undef, "The account has no members to bill." unless @$users;
+    return undef,
+      "The account has several members; one of them has to start the checkout."
+      if @$users > 1;
+
+    return $users->[0]{email};
+}
+
 sub render_subscription {
     my $self = shift;
 
@@ -771,8 +809,13 @@ sub render_subscription {
             }
 
             unless ($account->{stripe_customer_id}) {
+                my ($email, $email_error) = $self->_stripe_customer_email($account);
+                return OK, $json->encode({error => $email_error}),
+                  'application/json; charset=utf-8'
+                  unless $email;
+
                 my $customer = NP::Stripe::create_customer(
-                    email       => $self->user->{email},
+                    email       => $email,
                     name        => $account->{name},
                     description => $account->{organization_name},
 
