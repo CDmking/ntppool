@@ -160,18 +160,22 @@ sub manage_dispatch {
     # it. The dissolve route enforces its own staff/member-cancel access below.
     my $is_dissolve = $self->request->uri =~ m!^/manage/account/dissolve$!;
 
-    # can_edit is false for *everyone* on a frozen account, staff included
-    # (AccountWritable = !deletion_on, no staff exemption). /manage/account must
-    # still render so a member sees the "scheduled for deletion" banner and can
-    # cancel from it, and so staff sees the "deletion scheduled" link. Only that
-    # one URI is excepted; the edit POST is refused below and the Go API
-    # (ErrAccountFrozen) is the real enforcement.
+    # A frozen account (scheduled for deletion) redirects, for everyone.
+    # /manage/account must still render so a member sees the "scheduled for
+    # deletion" banner and can cancel from it, and so staff sees the "deletion
+    # scheduled" link. Only that one URI is excepted; the edit POST is refused
+    # below and the Go API (ErrAccountFrozen) is the real enforcement.
+    #
+    # Anyone who may select a writable account sees its pages: its members
+    # and any staff role. Changing the account and its team takes can_edit
+    # (members, support_staff and vendor_admin); the monitor settings on the
+    # same page are for monitor_admin.
     my $is_frozen_account_page = $account->{deletion_on}
       && $self->request->uri =~ m!^/manage/account$!;
 
     return $self->redirect("/manage/")
       unless ($account->{account_id} == 0
-          or $account->{permissions}{can_edit}
+          or !$account->{deletion_on}
           or $is_dissolve
           or $is_frozen_account_page);
 
@@ -182,14 +186,20 @@ sub manage_dispatch {
     if ($self->request->uri =~ m!^/manage/account$!) {
         if ($self->request->method eq 'post' and !$self->req_param('new_form')) {
 
-            # Everything except the frozen-account bypass just above reached
-            # here with can_edit true, so only that case needs refusing. The Go
-            # API returns FailedPrecondition for the write anyway; this turns it
-            # into a clean message instead of a raw API error.
-            return $self->render_account_edit unless $is_frozen_account_page;
-            $self->tpl_param('error',
-                'This account is scheduled for deletion and cannot be changed. Cancel the scheduled deletion first.'
-            );
+            # The Go API refuses these writes too (FailedPrecondition for a
+            # frozen account, PermissionDenied without can_edit); this turns
+            # the frozen case into a clean message instead of a raw API error.
+            if ($is_frozen_account_page) {
+                $self->tpl_param('error',
+                    'This account is scheduled for deletion and cannot be changed. Cancel the scheduled deletion first.'
+                );
+            }
+            elsif ($account->{account_id} == 0 or $account->{permissions}{can_edit}) {
+                return $self->render_account_edit;
+            }
+            else {
+                return 403;
+            }
         }
         return $self->render_account_form($account);
     }

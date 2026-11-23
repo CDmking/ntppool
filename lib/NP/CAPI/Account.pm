@@ -489,13 +489,16 @@ Hashref with structure:
             },  # hashref (AccountContext) - account is the current account context (specified or default)
  Omitted if user has no accounts or account is inaccessible
             permissions => {
-                can_edit => ...,  # bool - can_edit: User is in account or is staff
-                can_view => ...,  # bool - can_view: User is in account, is staff, or is monitor admin
-                can_add_servers => ...,  # bool - can_add_servers: Checks server verification status
+                can_edit => ...,  # bool - can_edit: may change the account's settings and team: members,
+ support_staff and vendor_admin.
+                can_view => ...,  # bool - can_view: a member, or staff who selected the account. Always true when
+ an account is selected.
+                can_add_servers => ...,  # bool - can_add_servers: may add servers: members and support_staff, and the
+ account's server verification status allows it:
  - Allow if no servers yet
  - Block if 2+ unverified servers
  - Otherwise allow
-                can_manage_billing => ...,  # bool - can_manage_billing: Account is writable and the user is a member or vendor admin.
+                can_manage_billing => ...,  # bool - can_manage_billing: may manage billing: members and vendor_admin.
             },  # hashref (AccountPermissions) - permissions for the authenticated user on this account
  Only present if account is present
             privileges => {
@@ -1906,13 +1909,16 @@ Hashref with structure:
                 subscription_summary => ...,  # hashref (SubscriptionSummary) - Subscription summary (computed from account_subscriptions)
             },  # hashref (AccountContext) - Core account with computed fields (always included)
             permissions => {
-                can_edit => ...,  # bool - can_edit: User is in account or is staff
-                can_view => ...,  # bool - can_view: User is in account, is staff, or is monitor admin
-                can_add_servers => ...,  # bool - can_add_servers: Checks server verification status
+                can_edit => ...,  # bool - can_edit: may change the account's settings and team: members,
+ support_staff and vendor_admin.
+                can_view => ...,  # bool - can_view: a member, or staff who selected the account. Always true when
+ an account is selected.
+                can_add_servers => ...,  # bool - can_add_servers: may add servers: members and support_staff, and the
+ account's server verification status allows it:
  - Allow if no servers yet
  - Block if 2+ unverified servers
  - Otherwise allow
-                can_manage_billing => ...,  # bool - can_manage_billing: Account is writable and the user is a member or vendor admin.
+                can_manage_billing => ...,  # bool - can_manage_billing: may manage billing: members and vendor_admin.
             },  # hashref (AccountPermissions) - Optional fields (based on mode or custom flags)
             users => [
             {

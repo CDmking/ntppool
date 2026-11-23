@@ -29,7 +29,9 @@
 
     [% PROCESS tpl/common/error_alert.html %]
 
+    [% can_edit_account = !account.account_id || account.permissions.can_edit %]
     <form id="account-form" action="/manage/account?a=[% account.id_token %]" method="post" accept-charset="utf-8">
+        <fieldset [% UNLESS can_edit_account %]disabled[% END %]>
         <input type="hidden" name="a" value="[% account.account_id ? account.id_token : 'new' %]" />
         <input type="hidden" name="auth_token" value="[% combust.auth_token %]" />
         <div class="form-group">
@@ -123,7 +125,10 @@
     <br>
 -->
 
+                [% IF can_edit_account %]
                 <p><input type="submit" class="btn btn-primary" value="[% account.account_id ? 'Update' : 'Create' %]"></p>
+                [% END %]
+        </fieldset>
         </form>
 
         [% INCLUDE tpl/account/monitor_config_section.html %]
