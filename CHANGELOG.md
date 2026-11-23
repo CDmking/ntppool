@@ -4,6 +4,44 @@ All notable changes to the NTP Pool Project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## prod-2026.11.2
+
+### 🌐 User Interface & Experience
+
+- The "Client distribution" table on the server page shows the zones that
+  answered with the server's IP address instead of the clients' countries.
+  The expected share from the netspeed setting now follows changes to the
+  setting during the 72 hours and counts only the time the server was in
+  DNS. Before, a server that had just changed its netspeed was compared
+  with the new setting for the whole period
+- Fix: the global zone page gives search engines `/zone` as its canonical
+  URL instead of a URL that redirects twice
+
+### 🛒 Vendors
+
+- Fix: a zone name entered as the full hostname, such as
+  `acme.pool.ntp.org`, becomes `acme` instead of `acmepoolntporg`
+- Fix: the plan picker, plan upgrades and the billing portal are only
+  offered to users who can manage the account's billing
+- Fix: when a checkout can't start, the page says why, with a link back to
+  try again and the vendor support address
+
+### 🧙🏼‍♀️ Admin features
+
+- Staff can connect apps to the NTP Pool with OAuth. The consent page shows
+  where the app is hosted and where the sign-in returns to, and warns when
+  it returns to a program on the same computer. "Connected apps" lists the
+  connections and lets you revoke them
+- The vendor zone rejection reason is labeled as an internal staff note and
+  shown to staff on rejected zones. The vendor gets no email about it, and
+  resubmitting the zone clears it
+- Fix: staff who select an account they can't change see its pages without
+  the forms to change it: account settings, team invitations, and the server
+  edit, netspeed and verification controls
+- Fix: a checkout started by staff creates the Stripe customer with the
+  account member's email address instead of the staff member's, and is
+  refused when the account has no member to bill or more than one
+
 ## prod-2026.11.1
 
 ### 🔒 Security
